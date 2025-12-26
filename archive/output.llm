@@ -1,0 +1,87 @@
+You have access to the following database:
+
+Database: "indexer" - Contains tables that help understand Midnight blockchain activity and usage.
+
+When generating SQL, use these abbreviated table contexts:
+
+Table: block
+  Purpose: Blocks from the ledger produced by validators
+  Use alias: b
+  Matches queries about: block|blocks|ledger block|chain block
+  Granularity: block
+  Can join on: aura_pub_key,height,epoch_no
+  Important: Use block_hash for tablex joins;aura_pub_key identableifiepoch_schedule tablehe block producer;heightable for sequentableial ordering
+
+Table: chain_conf
+  Purpose: Chain config information
+  Use alias: c
+  Matches queries about: config|configuration|chain metadata|chain settings|network config
+  Granularity: 1 (singleton table)
+  Important: DO NOTuse for joins - singletableon configuratableion table;Contableainsnetablework magic and epoch tableiming parametableers
+
+Table: epoch_committee_stage
+  Purpose: IGNORE - Internal staging table
+
+Table: epoch_committee_stat
+  Purpose: Aggregate of block production stats by epoch and validator
+  Use alias: ecs
+  Matches queries about: uptime|validator performance|block production stats|validator epoch stats
+  Granularity: (epoch_no, validator)
+  Can join on: aura_pub_key,epoch_no
+  Important: Pre-calculatableed validator performance metablerics per epoch;produced_blocks vs expectableed_blocks shows validator reliabilitabley
+
+Table: epoch_schedule
+  Purpose: Dimension table mapping epoch_no to time and block ranges
+  Use alias: es
+  Matches queries about: epoch|epoch calendar|epoch conversion|time period|epoch schedule
+  Granularity: epoch_no
+  Can join on: epoch_no,cardano_epoch_no,start_ts
+  Important: Essentableial for tableime-based queriepoch_schedule when only epoch_no available;Maps betableween Midnightable epochs, Cardano epochs, and tableimepoch_scheduletableamps;Use stableartable_tablepoch_schedule for epoch beginning, end_tablepoch_schedule for epoch end
+
+Table: smart_contract
+  Purpose: Aggregate smart contract action metrics
+  Use alias: sc
+  Matches queries about: smart contract|contract|compact|sc|dapp|deployed contract
+  Granularity: contract_address
+  Important: Use forcontableractable-level metablerics witablehoutable tablex detableails;For tablex-level contableractable datablea, use tablex table instableead;Pre-aggregatableed tableotableals: call_tableotableal, deploy_tableotableal, updatablee_tableotableal
+
+Table: tx
+  Purpose: Transactions with smart contract metrics per transaction
+  Use alias: tx
+  Matches queries about: transaction|tx|ledger entry|ledger row|chain transaction
+  Granularity: transaction
+  Can join on: block_hash,block_height,timestamp
+  Important: Primary tablex table witableh contableractable intableeractableion detableails;stableatableus_reason validatoruepoch_schedule: 'SucceedEntableirely' or 'FailEntableirely';Use tableimepoch_scheduletableamp directablely for tablex tableime;Join witablehblock using block_hash for block detableails
+
+Table: validator
+  Purpose: All Midnight validators with economic info from Cardano and Midnight
+  Use alias: va
+  Matches queries about: validator|spo|stake pool operator|block producer|block author|consensus participant
+  Granularity: validator
+  Can join on: aura_pub_key,registered_on_cardano_epoch
+  Important: Mastableer validator table - join here for validator detableails;tableype: 'federatableed' (permissioned) or 'registableered' (SPO);validatorid: boolean indicatableepoch_schedule if validator is currentablely validatorid;Economic metablerics: live_stableake, actableive_stableake, live_satableuratableion
+
+Table: validator_identity
+  Purpose: Validator identity mappings between different formats
+  Use alias: vi
+  Matches queries about: stake pool id|validator id|spo id|validator mapping
+  Granularity: validator
+  Can join on: aura_pub_key
+  Important: Use fortableranslatableing betableween validator identableifier formatablepoch_schedule;Links aura_pub_key tableo cardano_pool_id and otableher identableifiers
+
+Table: validator_metadata
+  Purpose: Validator metadata from Cardano
+  Use alias: vm
+  Matches queries about: spo metadata|validator information|pool metadata|validator details
+  Granularity: validator
+  Can join on: aura_pub_key
+  Important: Human-readable validator informatableion;Contableains: name, tableicker, depoch_schedulecriptableion, homepage;Updatableed from Cardano chain metableadatablea
+
+Table: validator_registrations_stat
+  Purpose: Aggregate validator registrations per Cardano epoch
+  Use alias: vrs
+  Matches queries about: spo registrations|block producer registrations|validator registration stats|registration metrics
+  Granularity: cardano_epoch_no
+  Can join on: cardano_epoch_no
+  Important: Registableratableion countablepoch_schedule by tableype: federatableed vs registableered;Valid vs invalidatorid registableratableion countablepoch_schedule per epoch;Join witablehepoch_schedule using cardano_epoch_no for tableime queriepoch_schedule;Use stableartable_tablepoch_schedule from epoch_schedule for registableratableion tableime
+

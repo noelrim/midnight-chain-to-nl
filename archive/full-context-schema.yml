@@ -1,0 +1,396 @@
+database: indexer
+description: Contains tables that help understand Midnight blockchain activity and usage.
+_alias_groups:
+  validator_terms: &ref_5
+    - validator
+    - spo
+    - stake pool operator
+    - block producer
+    - block author
+    - consensus participant
+  block_terms: &ref_0
+    - block
+    - blocks
+    - ledger block
+    - chain block
+  transaction_terms: &ref_4
+    - transaction
+    - tx
+    - ledger entry
+    - ledger row
+    - chain transaction
+  contract_terms: &ref_3
+    - smart contract
+    - contract
+    - compact
+    - sc
+    - dapp
+    - deployed contract
+  epoch_terms: &ref_2
+    - epoch
+    - epoch calendar
+    - epoch conversion
+    - time period
+    - epoch schedule
+  config_terms: &ref_1
+    - config
+    - configuration
+    - chain metadata
+    - chain settings
+    - network config
+_templates:
+  blockchain_entity:
+    semantic_tags:
+      - blockchain
+      - midnight
+      - distributed_ledger
+  validator_related:
+    semantic_tags:
+      - blockchain
+      - midnight
+      - consensus
+      - staking
+      - validator
+    query_hints:
+      - Join with validator table using aura_pub_key for validator details
+      - >-
+        validator.type distinguishes federated (permissioned) from registered
+        (SPO)
+  time_series:
+    semantic_tags:
+      - blockchain
+      - midnight
+      - time_series
+      - temporal
+    query_hints:
+      - Use epoch_schedule for time-based queries when timestamp not available
+      - Join on epoch_no or cardano_epoch_no for temporal analysis
+  metrics_aggregate:
+    semantic_tags:
+      - metrics
+      - analytics
+      - aggregated_data
+    query_hints:
+      - >-
+        Pre-aggregated data - use for performance when detailed records not
+        needed
+public.block:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - blocks
+    - consensus
+    - ledger
+  query_hints:
+    - Use block_hash for transaction joins
+    - aura_pub_key identifies the block producer
+    - height for sequential ordering
+  description: Blocks from the ledger produced by validators
+  grain: 1 row / block
+  size: xxl
+  primary_alias: b
+  aliases: *ref_0
+  soft_join_keys:
+    - aura_pub_key
+    - height
+    - epoch_no
+  columns:
+    - block_hash:bytea PK
+    - height:int
+    - protocol_version:text
+    - slot_no:bigint
+    - epoch_no:int
+    - time:ts
+    - prev_hash:bytea
+    - tx_count:int
+    - size:int
+    - fee_dust:bigint
+    - aura_pub_key:text
+public.chain_conf:
+  description: Chain config information
+  grain: 1 row (singleton table)
+  size: xs
+  primary_alias: c
+  aliases: *ref_1
+  semantic_tags:
+    - configuration
+    - chain_parameters
+    - singleton
+    - metadata
+  soft_join_keys: null
+  query_hints:
+    - DO NOT use for joins - singleton configuration table
+    - Contains network magic and epoch timing parameters
+  columns:
+    - id:smallint PK
+    - epoch_no_reference:int
+    - cardano_epoch_no_reference:int
+    - slot_per_epoch:int
+    - slot_duration:int
+    - network_magic:int
+    - cardano_epoch_duration:int
+    - cardano_next_epoch_ms:bigint
+    - next_epoch_time_ms:bigint
+public.epoch_committee_stage:
+  description: IGNORE - Internal staging table
+  grain: null
+  size: null
+  aliases: []
+  soft_join_keys: null
+  notes: SKIP - staging table not for querying
+  columns:
+    - epoch_no:int
+    - sidechain_pub_key:text
+    - position:int
+public.epoch_committee_stat:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - validator
+    - performance
+    - metrics
+    - uptime
+    - aggregated_data
+  query_hints:
+    - Pre-calculated validator performance metrics per epoch
+    - produced_blocks vs expected_blocks shows validator reliability
+  description: Aggregate of block production stats by epoch and validator
+  grain: 1 row / (epoch_no, validator)
+  size: l
+  primary_alias: ecs
+  aliases:
+    - uptime
+    - validator performance
+    - block production stats
+    - validator epoch stats
+  soft_join_keys:
+    - aura_pub_key
+    - epoch_no
+  columns:
+    - epoch_no:int PK FK→epoch_schedule.epoch_no
+    - aura_pub_key:text PK FK→validator_identity.aura_pub_key
+    - expected_blocks:int
+    - produced_blocks:int
+public.epoch_schedule:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - time_dimension
+    - calendar
+    - temporal
+    - lookup
+  query_hints:
+    - Essential for time-based queries when only epoch_no available
+    - Maps between Midnight epochs, Cardano epochs, and timestamps
+    - Use start_ts for epoch beginning, end_ts for epoch end
+  description: Dimension table mapping epoch_no to time and block ranges
+  grain: 1 row / epoch_no
+  size: l
+  primary_alias: es
+  aliases: *ref_2
+  soft_join_keys:
+    - epoch_no
+    - cardano_epoch_no
+    - start_ts
+  columns:
+    - epoch_no:int PK
+    - cardano_epoch_no:int
+    - start_ts:ts
+    - end_ts:ts
+    - start_height:bigint
+    - end_height:bigint
+public.smart_contract:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - smart_contracts
+    - dapps
+    - metrics
+    - aggregated_data
+  query_hints:
+    - Use for contract-level metrics without transaction details
+    - For transaction-level contract data, use tx table instead
+    - 'Pre-aggregated totals: call_total, deploy_total, update_total'
+  description: Aggregate smart contract action metrics
+  grain: 1 row / contract_address
+  size: s
+  primary_alias: sc
+  aliases: *ref_3
+  soft_join_keys: null
+  columns:
+    - contract_addr:text PK
+    - deploy_total:bigint
+    - call_total:bigint
+    - update_total:bigint
+    - last_tx_index:bigint
+    - last_block_height:bigint
+public.tx:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - transactions
+    - smart_contracts
+    - ledger
+    - detailed_data
+  description: Transactions with smart contract metrics per transaction
+  grain: 1 row / transaction
+  size: l
+  primary_alias: tx
+  aliases: *ref_4
+  soft_join_keys:
+    - block_hash
+    - block_height
+    - timestamp
+  query_hints:
+    - Primary transaction table with contract interaction details
+    - 'status_reason values: ''SucceedEntirely'' or ''FailEntirely'''
+    - Use timestamp directly for transaction time
+    - Join with block using block_hash for block details
+  columns:
+    - tx_hash:bytea PK
+    - block_hash:bytea PK FK→block.block_hash
+    - block_height:int
+    - index_in_block:smallint
+    - status_reason:text
+    - timestamp:ts
+    - fee_dust:bigint
+    - merkle_tree_root:bytea
+    - deploy_count:int
+    - update_count:int
+    - call_count:int
+public.validator:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - validator
+    - staking
+    - economics
+    - consensus
+    - master_data
+  query_hints:
+    - Master validator table - join here for validator details
+    - 'type: ''federated'' (permissioned) or ''registered'' (SPO)'
+    - 'valid: boolean indicates if validator is currently valid'
+    - 'Economic metrics: live_stake, active_stake, live_saturation'
+  description: All Midnight validators with economic info from Cardano and Midnight
+  grain: 1 row / validator
+  size: xs
+  primary_alias: va
+  aliases: *ref_5
+  soft_join_keys:
+    - aura_pub_key
+    - registered_on_cardano_epoch
+  columns:
+    - aura_pub_key:text PK FK→validator_identity.aura_pub_key
+    - registered_on_cardano_epoch:int
+    - live_stake:bigint
+    - live_saturation:double precision
+    - live_delegators:int
+    - active_stake:bigint
+    - declared_pledge:bigint
+    - live_pledge:bigint
+    - margin_cost:double precision
+    - fixed_cost:bigint
+    - valid:bool
+    - type:text
+public.validator_identity:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - validator
+    - identity
+    - mapping
+    - lookup
+  query_hints:
+    - Use for translating between validator identifier formats
+    - Links aura_pub_key to cardano_pool_id and other identifiers
+  description: Validator identity mappings between different formats
+  grain: 1 row / validator
+  size: xs
+  primary_alias: vi
+  aliases:
+    - stake pool id
+    - validator id
+    - spo id
+    - validator mapping
+  soft_join_keys:
+    - aura_pub_key
+  columns:
+    - aura_pub_key:text PK
+    - sidechain_pub_key:text
+    - mainchain_pub_key:text
+    - cardano_pool_hex:bytea
+    - cardano_pool_id:text
+public.validator_metadata:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - validator
+    - metadata
+    - descriptive_data
+  query_hints:
+    - Human-readable validator information
+    - 'Contains: name, ticker, description, homepage'
+    - Updated from Cardano chain metadata
+  description: Validator metadata from Cardano
+  grain: 1 row / validator
+  size: xs
+  primary_alias: vm
+  aliases:
+    - spo metadata
+    - validator information
+    - pool metadata
+    - validator details
+  soft_join_keys:
+    - aura_pub_key
+  columns:
+    - aura_pub_key:text PK FK→validator_identity.aura_pub_key
+    - url:text
+    - ticker:text
+    - name:text
+    - description:text
+    - homepage:text
+    - updated_at:ts
+public.validator_registrations_stat:
+  semantic_tags:
+    - blockchain
+    - midnight
+    - validator
+    - registration
+    - metrics
+    - time_series
+    - aggregated_data
+  query_hints:
+    - 'Registration counts by type: federated vs registered'
+    - Valid vs invalid registration counts per epoch
+    - Join with epoch_schedule using cardano_epoch_no for time queries
+    - Use start_ts from epoch_schedule for registration time
+  description: Aggregate validator registrations per Cardano epoch
+  grain: 1 row / cardano_epoch_no
+  size: m
+  primary_alias: vrs
+  aliases:
+    - spo registrations
+    - block producer registrations
+    - validator registration stats
+    - registration metrics
+  soft_join_keys:
+    - cardano_epoch_no
+  columns:
+    - cardano_epoch_no:int PK
+    - federated_valid_count:int
+    - federated_invalid_count:int
+    - registered_valid_count:int
+    - registered_invalid_count:int
+    - dparam:double precision
+public.v_validator_uptime:
+  columns:
+    - aura_pub_key:text
+    - produced:bigint
+    - expected:bigint
+    - alltime_uptime:num
+    - live_stake:bigint
+    - live_saturation:double precision
+    - live_delegators:int
+    - valid:bool
+    - type:text

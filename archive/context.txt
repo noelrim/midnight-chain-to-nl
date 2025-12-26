@@ -1,0 +1,128 @@
+Database: indexer
+Description: Contains tables that help understand Midnight blockchain activity and usage.
+
+Table undefined: public.block
+  Columns:
+    - aura_pub_key: text
+    - block_hash: bytea
+    - epoch_no: integer
+    - fee_dust: bigint
+    - height: integer
+    - prev_hash: bytea
+    - protocol_version: text
+    - size: integer
+    - slot_no: bigint
+    - time: timestamp with time zone
+    - tx_count: integer
+
+Table undefined: public.chain_conf
+  Columns:
+    - cardano_epoch_duration: integer
+    - cardano_epoch_no_reference: integer
+    - cardano_next_epoch_ms: bigint
+    - epoch_no_reference: integer
+    - id: smallint
+    - network_magic: integer
+    - next_epoch_time_ms: bigint
+    - slot_duration: integer
+    - slot_per_epoch: integer
+
+Table undefined: public.epoch_committee_stage
+  Columns:
+    - epoch_no: integer
+    - position: integer
+    - sidechain_pub_key: text
+
+Table undefined: public.epoch_committee_stat
+  Columns:
+    - aura_pub_key: text
+    - epoch_no: integer
+    - expected_blocks: integer
+    - produced_blocks: integer
+  Joins:
+    - public.epoch_committee_stat.epoch_no = public.epoch_schedule.epoch_no  -- hard, many_to_one
+    - public.epoch_committee_stat.aura_pub_key = public.validator_identity.aura_pub_key  -- hard, many_to_one
+    - ANY_TABLE.validator = public.epoch_committee_stat.validator  -- soft
+
+Table undefined: public.epoch_schedule
+  Columns:
+    - cardano_epoch_no: integer
+    - end_height: bigint
+    - end_ts: timestamp with time zone
+    - epoch_no: integer
+    - start_height: bigint
+    - start_ts: timestamp with time zone
+
+Table undefined: public.smart_contract
+  Columns:
+    - call_total: bigint
+    - contract_addr: text
+    - deploy_total: bigint
+    - last_block_height: bigint
+    - last_tx_index: bigint
+    - update_total: bigint
+
+Table undefined: public.tx
+  Columns:
+    - block_hash: bytea
+    - block_height: integer
+    - call_count: integer
+    - deploy_count: integer
+    - fee_dust: bigint
+    - index_in_block: smallint
+    - merkle_tree_root: bytea
+    - status_reason: text
+    - timestamp: timestamp with time zone
+    - tx_hash: bytea
+    - update_count: integer
+  Joins:
+    - public.tx.block_hash = public.block.block_hash  -- hard, many_to_one
+
+Table undefined: public.validator
+  Columns:
+    - active_stake: bigint
+    - aura_pub_key: text
+    - declared_pledge: bigint
+    - fixed_cost: bigint
+    - live_delegators: integer
+    - live_pledge: bigint
+    - live_saturation: double precision
+    - live_stake: bigint
+    - margin_cost: double precision
+    - registered_on_cardano_epoch: integer
+    - type: text
+    - valid: boolean
+  Joins:
+    - public.validator.aura_pub_key = public.validator_identity.aura_pub_key  -- hard, many_to_one
+    - ANY_TABLE.aura_pub_key = public.validator.aura_pub_key  -- soft
+
+Table undefined: public.validator_identity
+  Columns:
+    - aura_pub_key: text
+    - cardano_pool_hex: bytea
+    - cardano_pool_id: text
+    - mainchain_pub_key: text
+    - sidechain_pub_key: text
+  Joins:
+    - ANY_TABLE.any = public.validator_identity.any  -- soft
+
+Table undefined: public.validator_metadata
+  Columns:
+    - aura_pub_key: text
+    - description: text
+    - homepage: text
+    - name: text
+    - ticker: text
+    - updated_at: timestamp with time zone
+    - url: text
+  Joins:
+    - public.validator_metadata.aura_pub_key = public.validator_identity.aura_pub_key  -- hard, many_to_one
+
+Table undefined: public.validator_registrations_stat
+  Columns:
+    - cardano_epoch_no: integer
+    - dparam: double precision
+    - federated_invalid_count: integer
+    - federated_valid_count: integer
+    - registered_invalid_count: integer
+    - registered_valid_count: integer

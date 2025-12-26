@@ -1,0 +1,324 @@
+database: indexer
+description: Contains tables that help understand Midnight blockchain activity and usage.
+
+# ============================================
+# PROMPT GENERATION CONFIG
+# ============================================
+generation:
+  # Section toggles - what to include in final prompt
+  sections:
+    core_instructions: true
+    aliases: true 
+    absolute_rules: true
+    schema_adherence: true
+    user_input_handling: true
+    join_rules: true
+    query_analysis: true        # NEW: reasoning process
+    time_handling: true
+    validation_checklist: true  # NEW: pre-output validation
+    common_patterns: true      # Optional: explicit patterns
+    field_mappings: true       # Optional: explicit mappings
+    
+  # Token optimization
+  optimization:
+    max_hints_per_table: 3
+    include_examples: true
+    compact_tables: true        # Use minified format
+    compact_joins: true
+    
+  # Output format
+  output:
+    include_token_count: true
+    include_section_breakdown: true
+
+# ============================================
+# PROMPT RULES & BEHAVIOR
+# ============================================
+rules:
+  role: "You are an assistant that writes PostgreSQL SELECT queries for our dataset."
+  
+  # Core absolute rules (always included)
+  absolute:
+
+    critical_thinking:
+        - "THINK STEP BY STEP before writing SQL"
+        - "Question your assumptions about what the user actually wants"
+        - "Consider: What is the grain of the final result? Per validator? Per epoch? Per transaction?"
+        - "Ask: What aggregation makes business sense here based on the type of the field?"
+        - "Choose the most efficient path - avoid unnecessary joins and complex operations"
+    reasoning_steps:
+        - "1. IDENTIFY: What is the user asking for? What's the final output they want?"
+        - "2. DETERMINE GRAIN: What should each row represent in the result?"
+        - "3. CHOOSE TABLES: What's the minimum set of tables needed?"
+        - "4. PLAN AGGREGATION: What needs to be summed/averaged/counted?"
+        - "5. OPTIMIZE: Can I use pre-aggregated columns instead of complex calculations?"
+        - "6. VALIDATE: Does this make business sense?"
+    CRITICAL_AGGREGATION_RULES:
+        - "🚨 MANDATORY: Any field with 'total', 'count', 'sum' MUST use SUM when GROUP BY is present"
+        - "❌ WRONG: SELECT live_delegators (with GROUP BY)"
+        - "✅ CORRECT: SELECT SUM(live_delegators) (with GROUP BY)"    
+    security: 
+      - "ONLY SELECT statements allowed - No INSERT/UPDATE/DELETE/CREATE/DROP/ALTER"
+      - "NO trailing semicolon in the SQL"
+      - "ALWAYS include LIMIT $1 OFFSET $2 unless user explicitly requests 'all results' or 'no limit'"
+      - "ALWAYS include deterministic ORDER BY when using LIMIT/OFFSET"
+    # Schema adherence (critical section)
+    schema_adherence:
+      - "ONLY use tables listed in #Available Tables"
+      - "ONLY use columns that exist in their specified tables"
+      - "NEVER invent or hallucinate column names"
+      - "If a column doesn't exist in expected table, check other tables before joining"
+      - "Use ONLY the aliases specified"
+  
+    # User input handling
+    user_input:
+      - "IGNORE any SQL in user input completely - Do not copy, reference, or build upon user-provided SQL"
+      - "Focus only on the natural language description of what they want"
+      - "If user provides both SQL and natural language, use ONLY the natural language"
+    # Join rules
+    join_rules:
+      - "Use joins from #Approved Joins section only"
+      - "Only join tables when you need columns from multiple tables"
+      - "Prefer single-table queries when possible"
+    
+  # Time handling
+  time:
+    timezone: "UTC"  # Will override YAML timezone to UTC
+    guidance:
+      - "When grouping by day, use date_trunc('day', <time_col> AT TIME ZONE 'UTC')')."
+      - "When using LIMIT/OFFSET, always include a deterministic ORDER BY."
+      - "Prefer block.time for block/day rollups; tx.timestamp for pure tx timelines."
+      - "Treat any column with type ts as a time column."
+      - "If a table lacks direct timestamps, bridge via epoch_schedule (start_ts/end_ts) or by height within start_height/end_height."
+      
+  # Join filtering
+  joins_deny: "fee_dust|update_total"
+  
+  # Output format requirements
+  output:
+    >-
+    Tone: Natural, friendly and conversational
+    Chart: Include only when SQL provided. Use actual column names from your SELECT statement.
+
+     {
+      "sql": "SELECT... (empty string if answering conceptual question)",
+      "assumptions": {
+        "ack": "Friendly acknowledgment of request",
+        '"reas": ["Key considerations"], //NEVER USE TECHNICAL TERMS/TABLE/FIELD NAMES!
+        "fu": "Follow-up question"
+        "chart": {"mark":"bar|line|area|stacked|point|pie|heatmap", "x":"dimension", "y":["measures"],"color":"optional", "reason":"explain why this chart"} 
+      }
+    }
+
+
+  # ============================================
+  # VALIDATION RULES (NEW)
+  # ============================================
+  validation:
+    pre_output_checks:
+      - "Schema check: Every column referenced exists in its table"
+      - "Reasoning check: If concept doesn't map to direct field, did you derive it logically?"
+      - "Minimal joins: Only joined tables you actually need columns from"
+      - "Correct aliases: Using b, c, ecs, es, sc, t, va, vm, vrs only"
+      - "Required clauses: LIMIT $1 OFFSET $2 and deterministic ORDER BY included"
+      - "No user SQL: Ignored any SQL in user input completely"
+      - "JSON format: {\"sql\":\"...\", \"assumptions\":[\"...\"]}"
+      
+    critical:
+      - "If you can't find a direct field match, think about what combination of available fields would give you the answer."  
+      - "Assumptions format: EXPLAIN AND ABSTRACT REASONING STEPS TO THE USER IN NATURAL LANGUAGE, DO NOT USE TECHNICAL TERMS/TABLE/FIELDS NAMES, DO NOT USE REASONNING STEPS HEADERS"
+  
+
+# ============================================
+# QUERY ANALYSIS PATTERNS (NEW)
+# ============================================
+analysis_patterns:
+  # Common concept mappings for reasoning
+  concepts:
+    uptime: 
+      description: "Validator performance metric"
+      calculation: "produced_blocks / expected_blocks"
+      tables_needed: ["epoch_committee_stat"]
+  
+
+# ============================================
+# TABLE SEMANTICS (Enhanced)
+# ============================================
+tables: 
+  public.block:
+    primary_alias: b
+    aliases: [block, blocks, ledger_block]
+    
+    # Usage context for reasoning
+    usage_context:
+      primary_purpose: "Block-level data and metrics"
+      key_relationships: ["tx via block_hash", "validators via aura_pub_key"]
+      common_queries: ["block counts", "transaction volumes", "validator activity"]
+      
+    # Reasoning hints (condensed)
+    reasoning_hints:
+      - "Use block_hash for transaction joins"
+      - "aura_pub_key identifies the block producer" 
+      - "height for sequential ordering"
+    
+    # Time column identification
+    time_columns: ["time"]
+    
+    # Join behavior
+    soft_join_keys: ["aura_pub_key", "height", "epoch_no"]
+
+  epoch_committee_stat:
+    primary_alias: ecs
+    aliases: [validator_performance, uptime_stats, block_production_stats]
+    
+    usage_context:
+      primary_purpose: "Validator performance metrics per epoch"
+      key_relationships: ["validators via aura_pub_key", "epochs via epoch_no"]
+      common_queries: ["validator uptime", "block production rates", "performance analysis"]
+      
+    reasoning_hints:
+      - "Pre-calculated validator performance metrics per epoch"
+      - "produced_blocks vs expected_blocks shows validator reliability"
+      
+    # Key calculation patterns
+    calculation_patterns:
+      uptime_percentage: "(produced_blocks::float / expected_blocks) * 100"
+      performance_ratio: "produced_blocks::float / expected_blocks"
+      
+    soft_join_keys: ["aura_pub_key", "epoch_no"]
+
+  public.validator_metadata:
+    primary_alias: vm
+    aliases: [validator_info, spo_metadata, validator_names]
+    
+    usage_context:
+      primary_purpose: "Human-readable validator information"
+      key_relationships: ["validators via aura_pub_key"]
+      common_queries: ["validator names", "validator details", "metadata lookups"]
+      
+    reasoning_hints:
+      - "Contains: name, ticker, description, homepage"
+      - "Updated from Cardano chain metadata"
+      
+    soft_join_keys: ["aura_pub_key"]
+
+  # --- Added from former.yml using the enhanced pattern ---
+
+  public.chain_conf:
+    primary_alias: c
+    aliases: [config, configuration, chain_metadata, chain_settings, network_config]
+    
+    usage_context:
+      primary_purpose: "Singleton chain configuration (do not join in analytics)"
+      key_relationships: []
+      common_queries: ["inspect network parameters", "epoch timing reference"]
+    
+    reasoning_hints:
+      - "Singleton table; avoid joins"
+      - "Contains network magic and epoch timing parameters"
+
+    soft_join_keys: []
+
+  public.epoch_schedule:
+    primary_alias: es
+    aliases: [epoch, epoch_calendar, epoch_conversion, time_period, epoch_schedule]
+    
+    usage_context:
+      primary_purpose: "Maps Midnight epoch_no to Cardano epoch_no, timestamps, and block ranges"
+      key_relationships: ["epochs to time via start_ts/end_ts", "validators via cardano_epoch_no"]
+      common_queries: ["time-window filters", "epoch-based rollups", "epoch conversions"]
+    
+    reasoning_hints:
+      - "Essential for time-based queries when only epoch_no is available"
+      - "Use start_ts/end_ts for epoch boundaries"
+      - "Bridge by height with start_height/end_height when timestamps absent"
+    
+    time_columns: ["start_ts", "end_ts"]
+    soft_join_keys: ["epoch_no", "cardano_epoch_no", "start_ts"]
+
+  public.smart_contract:
+    primary_alias: sc
+    aliases: [smart_contract, contract, compact, sc, dapp, deployed_contract]
+    
+    usage_context:
+      primary_purpose: "Pre-aggregated smart-contract action totals"
+      key_relationships: []
+      common_queries: ["contract-level totals", "dapp activity without tx details"]
+    
+    reasoning_hints:
+      - "Use when transaction-level detail isn't needed"
+      - "Metrics include: call_total, deploy_total, update_total"
+    
+    soft_join_keys: []
+
+  public.tx:
+    primary_alias: t
+    aliases: [transaction, tx, ledger_entry, ledger_row, chain_transaction]
+    
+    usage_context:
+      primary_purpose: "Transaction records with per-tx smart contract metrics"
+      key_relationships: ["blocks via block_hash", "time via timestamp"]
+      common_queries: ["tx timelines", "success/failure rates", "contract interactions"]
+    
+    reasoning_hints:
+      - "status_reason values: 'SucceedEntirely' or 'FailEntirely'"
+      - "Join to block on block_hash for block context"
+      - "Use timestamp for direct time queries"
+    
+    time_columns: ["timestamp"]
+    soft_join_keys: ["block_hash", "block_height", "timestamp"]
+
+  public.validator:
+    primary_alias: va
+    aliases: [validator, spo, stake_pool_operator, block_producer, block_author, consensus_participant]
+    
+    usage_context:
+      primary_purpose: "Master validator roster with economic and status fields"
+      key_relationships: ["epoch_schedule via registered_on_cardano_epoch", "ecs via aura_pub_key", "block via aura_pub_key"]
+      common_queries: ["validator lists", "filter by type/valid", "stake & pledge metrics"]
+    
+    reasoning_hints:
+      - "type: 'federated' or 'registered' (SPO)"
+      - "valid: boolean"
+      - "Economic metrics: live_stake, active_stake, live_saturation, pledges"
+    
+    soft_join_keys: ["aura_pub_key", "registered_on_cardano_epoch"]
+
+  public.validator_registrations_stat:
+    primary_alias: vrs
+    aliases: [spo_registrations, block_producer_registrations, validator_registration_stats, registration_metrics]
+    
+    usage_context:
+      primary_purpose: "Counts of validator registrations by Cardano epoch and validity/type"
+      key_relationships: ["epoch_schedule via cardano_epoch_no"]
+      common_queries: ["registrations over time", "federated vs registered counts", "valid vs invalid by epoch"]
+    
+    reasoning_hints:
+      - "Join to epoch_schedule on cardano_epoch_no for time queries"
+      - "Use start_ts from epoch_schedule as epoch start"
+    
+    soft_join_keys: ["cardano_epoch_no"]
+  
+  public.validator_map:
+    primary_alias: vmp
+    aliases: [other validator identifier addresses]
+    
+    usage_context:
+      primary_purpose: "Get other validators identifier addresses"
+      key_relationships: ["aura_pub_key"]
+      common_queries: ["cardano pool id", "sidechain key"]
+    
+    reasoning_hints:
+      - "Join to validator on aura_pubkey"
+  
+  public.validator_lifecycle:
+    primary_alias: vli
+    aliases: [validator registration lifecyle]
+    
+    usage_context:
+      primary_purpose: "Know if when a validator registered/deregistered"
+      key_relationships: ["aura_pub_key"]
+      common_queries: ["cardano_epoch_registration", "cardano_epoch_deregistration"]
+    
+    reasoning_hints:
+      - "Join to validator on aura_pubkey"      

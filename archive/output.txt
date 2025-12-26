@@ -1,0 +1,106 @@
+DB:indexer
+DESC:Contains tables that help understand Midnight blockchain activity and usage.
+KEYS:{"d":"description","g":"grain","s":"size(1=xs,2=s,3=m,4=l,5=xl,6=xxl)","pa":"primary_alias","a":"aliases(pipe-separated)","st":"semantic_tags","jk":"join_keys(comma-separated)","qh":"query_hints(semicolon-separated)","n":"notes"}
+---
+T:block
+st:bc,mn,blk,con,ldg
+qh:Use block_hash for tx joins;apk identifies the block producer;height for sequential ordering
+d:Blocks from the ledger produced by validators
+g:block
+s:6
+pa:b
+a:block|blocks|ledger block|chain block
+jk:aura_pub_key,height,epoch_no
+
+T:chain_conf
+d:Chain config information
+g:1 (singleton table)
+s:1
+pa:c
+a:config|configuration|chain metadata|chain settings|network config
+st:cfg,cp,sng,md
+qh:!!use for joins - singleton configuration t;has:network magic and epoch timing parameters
+
+T:epoch_committee_stage
+d:IGNORE - Internal staging table
+n:SKIP - staging table not for querying
+
+T:epoch_committee_stat
+st:bc,mn,val,prf,mtr,up,agg
+qh:Pre-calculated val performance metrics per epoch;produced_blocks vs expected_blocks shows val reliability
+d:Aggregate of block production stats by epoch and validator
+g:(epoch_no, validator)
+s:4
+pa:ecs
+a:uptime|validator performance|block production stats|validator epoch stats
+jk:aura_pub_key,epoch_no
+
+T:epoch_schedule
+st:bc,mn,td,cal,tmp,lkp
+qh:Essential for time-based queries when only epoch_no available;Maps between Midnight epochs, Cardano epochs, and timestamps;Use start_ts for epoch beginning, end_ts for epoch end
+d:Dimension table mapping epoch_no to time and block ranges
+g:epoch_no
+s:4
+pa:es
+a:epoch|epoch calendar|epoch conversion|time period|epoch schedule
+jk:epoch_no,cardano_epoch_no,start_ts
+
+T:smart_contract
+st:bc,mn,sc,da,mtr,agg
+qh:uf:contract-level metrics without tx details;For tx-level contract data, use tx t instead;Pre-aggregated totals: call_total, deploy_total, update_total
+d:Aggregate smart contract action metrics
+g:contract_address
+s:2
+pa:sc
+a:smart contract|contract|compact|sc|dapp|deployed contract
+
+T:tx
+st:bc,mn,tx,sc,ldg,det
+d:Transactions with smart contract metrics per transaction
+g:transaction
+s:4
+pa:tx
+a:transaction|tx|ledger entry|ledger row|chain transaction
+jk:block_hash,block_height,timestamp
+qh:Primary tx t with contract interaction details;status_reason values: 'SucceedEntirely' or 'FailEntirely';Use timestamp directly for tx time;jw:block using block_hash for block details
+
+T:validator
+st:bc,mn,val,stk,eco,con,mst
+qh:Master val t - join here for val details;type: 'federated' (permissioned) or 'registered' (SPO);valid: boolean indicates if val is currently valid;Economic metrics: live_stake, active_stake, live_saturation
+d:All Midnight validators with economic info from Cardano and Midnight
+g:validator
+s:1
+pa:va
+a:validator|spo|stake pool operator|block producer|block author|consensus participant
+jk:aura_pub_key,registered_on_cardano_epoch
+
+T:validator_identity
+st:bc,mn,val,id,map,lkp
+qh:uf:translating between val identifier formats;Links apk to cardano_pool_id and other identifiers
+d:Validator identity mappings between different formats
+g:validator
+s:1
+pa:vi
+a:stake pool id|validator id|spo id|validator mapping
+jk:aura_pub_key
+
+T:validator_metadata
+st:bc,mn,val,md,dsc
+qh:Human-readable val information;Contains: name, ticker, description, homepage;Updated from Cardano chain metadata
+d:Validator metadata from Cardano
+g:validator
+s:1
+pa:vm
+a:spo metadata|validator information|pool metadata|validator details
+jk:aura_pub_key
+
+T:validator_registrations_stat
+st:bc,mn,val,reg,mtr,ts,agg
+qh:Registration counts by type: federated vs registered;Valid vs invalid registration counts per epoch;jw:es using cardano_epoch_no for time queries;Use start_ts from es for registration time
+d:Aggregate validator registrations per Cardano epoch
+g:cardano_epoch_no
+s:3
+pa:vrs
+a:spo registrations|block producer registrations|validator registration stats|registration metrics
+jk:cardano_epoch_no
+
