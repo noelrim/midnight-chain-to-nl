@@ -14,7 +14,7 @@ const SCHEMA = (process.argv[3] || 'public').toLowerCase();
 const pool = new Pool({
   connectionString: process.env.PG_URL
     || process.env.DATABASE_URL
-    || 'postgresql://indexer:REDACTED@localhost:5432/indexer',
+    || 'postgresql://localhost:5432/indexer',
   application_name: 'schema-snapshot',
   max: 3,
 });

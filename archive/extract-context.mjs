@@ -14,11 +14,11 @@ const { Client } = pkg;
 // ===== CONFIG ===
 
 const DB_CONFIG = {
-  host: 'localhost',
-  port: 5432,
-  user: 'indexer',
-  password: 'REDACTED',
-  database: 'indexer'
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  user: process.env.DB_USER || 'indexer',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'indexer'
 };
 const INPUT_MANUAL_SCHEMA = './db-context.yml';
 const OUTPUT_FULL_SCHEMA = './full-context-schema.yml';

@@ -33,7 +33,7 @@ const PROMPT_OUT = process.argv[5] || 'enhanced-prompt.txt';
 const YML_PATH = process.env.CONTEXT_YML || './db-context.yml';
 
 // ---- PG POOL ----
-const CONN_STR = process.env.PG_URL || process.env.DATABASE_URL || 'postgresql://indexer:REDACTED@localhost:5432/indexer';
+const CONN_STR = process.env.PG_URL || process.env.DATABASE_URL || 'postgresql://localhost:5432/indexer';
 const CONN_TIMEOUT = parseInt(process.env.PG_CONNECT_TIMEOUT_MS || '8000', 10);
 const STMT_TIMEOUT = parseInt(process.env.PG_STATEMENT_TIMEOUT_MS || '15000', 10);
 function redactUrl(u){
